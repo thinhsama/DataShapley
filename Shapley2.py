@@ -139,7 +139,7 @@ class ShapNN(object):
                 self.global_step = tf.compat.v1.train.get_global_step()
             if not self.is_built:
                 self._build_model(X, y)
-                self.saver = tf.train.Saver()
+                self.saver = tf.compat.v1.train.Saver()
             self._initialize()
             if len(X):
                 if X_val is None and self.validation_fraction * len(X) > 2:
@@ -211,20 +211,20 @@ class ShapNN(object):
         
         uninitialized_vars = []
         if self.warm_start:
-            for var in tf.global_variables():
+            for var in tf.compat.v1.global_variables():
                 try:
                     self.sess.run(var)
                 except tf.errors.FailedPreconditionError:
                     uninitialized_vars.append(var)
         else:
-            uninitialized_vars = tf.global_variables()
-        self.sess.run(tf.initializers.variables(uninitialized_vars))
+            uninitialized_vars = tf.compat.v1.global_variables()
+        self.sess.run(tf.compat.v1.initializers.variables(uninitialized_vars))
         
     def _build_model(self, X, y):
         
         self.num_classes = len(set(y))
         if self.initializer is None:
-            initializer = tf.initializers.variance_scaling(distribution='uniform')
+            initializer = tf.compat.v1.initializers.variance_scaling(distribution='uniform')
         if self.activation is None:
             activation = lambda x: tf.nn.relu(x)
         self.input_ph = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None,) + X.shape[1:], name='input')
@@ -248,19 +248,19 @@ class ShapNN(object):
         
         """Build taining specific ops for the graph."""
         learning_rate = tf.constant(self.learning_rate, tf.float32) ##fixit
-        trainable_variables = tf.trainable_variables()
+        trainable_variables = tf.compat.v1.trainable_variables()
         grads = tf.gradients(self.loss, trainable_variables)
         self.grad_flat = tf.concat([tf.reshape(grad, (-1, 1)) for grad in grads], axis=0)
         if self.optimizer == 'sgd':
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+            optimizer = tf.compat.v1.train.GradientDescentOptimizer(learning_rate)
         elif self.optimizer == 'mom':
-            optimizer = tf.train.MomentumOptimizer(learning_rate, 0.9)
+            optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, 0.9)
         elif self.optimizer == 'adam':
-            optimizer = tf.train.AdamOptimizer(learning_rate)
+            optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
         apply_op = optimizer.apply_gradients(
             zip(grads, trainable_variables),
             global_step=self.global_step, name='train_step')
-        train_ops = [apply_op] + self._extra_train_ops + tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        train_ops = [apply_op] + self._extra_train_ops + tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
         previous_ops = [tf.group(*train_ops)]
         with tf.control_dependencies(previous_ops):
             self.train_op = tf.no_op(name='train')   
@@ -290,17 +290,17 @@ class ShapNN(object):
     def _dense(self, x, out_dim, dropout=tf.constant(0.), initializer=None, activation=None):
         
         if initializer is None:
-            initializer = tf.initializers.variance_scaling(distribution='uniform')
+            initializer = tf.compat.v1.initializers.variance_scaling(distribution='uniform')
         w = tf.compat.v1.get_variable('DW', [x.get_shape()[1], out_dim], initializer=initializer)
-        b = tf.compat.v1.get_variable('Db', [out_dim], initializer=tf.constant_initializer())
-        x = tf.nn.dropout(x, 1. - dropout)
+        b = tf.compat.v1.get_variable('Db', [out_dim], initializer=tf.compat.v1.constant_initializer())
+        x = tf.nn.dropout(x, rate=1 - (1. - dropout))
         if activation:
             x = activation(x)
-        return tf.nn.xw_plus_b(x, w, b)
+        return tf.compat.v1.nn.xw_plus_b(x, w, b)
     def _reg_loss(self, order=2):
         """Regularization loss for weight decay."""
         losss = []
-        for var in tf.trainable_variables():
+        for var in tf.compat.v1.trainable_variables():
             if var.op.name.find(r'DW') > 0 or var.op.name.find(r'CW') > 0: ##FIXIT
                 if order==2:
                     losss.append(tf.nn.l2_loss(var))
@@ -359,10 +359,10 @@ class CShapNN(ShapNN):
         n = filter_size * filter_size * out_filters
         kernel = tf.compat.v1.get_variable(
             'DW', [filter_size, filter_size, in_filters, out_filters],
-            tf.float32, initializer=tf.random_normal_initializer(
+            tf.float32, initializer=tf.compat.v1.random_normal_initializer(
                 stddev=np.sqrt(2.0/n)))
         self.kernels.append(kernel)
-        x = tf.nn.conv2d(x, kernel, strides, padding='SAME')
+        x = tf.nn.conv2d(x, filters=kernel, strides=strides, padding='SAME')
         if activation:
             x = activation(x)
         return x
@@ -381,7 +381,7 @@ class CShapNN(ShapNN):
         
         
         if self.initializer is None:
-            initializer = tf.initializers.variance_scaling(distribution='uniform')
+            initializer = tf.compat.v1.initializers.variance_scaling(distribution='uniform')
         if self.activation is None:
             activation = lambda x: tf.nn.relu(x)
         self.input_ph = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None,) + X.shape[1:], name='input')

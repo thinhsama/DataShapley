@@ -1,0 +1,52 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 1 files
+Detected 1 issues that require attention
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File: Shapley.py
+--------------------------------------------------------------------------------
+Shapley.py:154:20: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+================================================================================
+Detailed log follows:
+
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'Shapley.py'
+ outputting to 'Shapley2.py'
+--------------------------------------------------------------------------------
+
+142:29: INFO: Renamed 'tf.train.Saver' to 'tf.compat.v1.train.Saver'
+154:20: WARNING: *.save requires manual check. (This warning is only applicable if the code saves a tf.Keras model) Keras model.save now saves to the Tensorflow SavedModel format by default, instead of HDF5. To continue saving to HDF5, add the argument save_format='h5' to the save() function.
+214:23: INFO: Renamed 'tf.global_variables' to 'tf.compat.v1.global_variables'
+220:33: INFO: Renamed 'tf.global_variables' to 'tf.compat.v1.global_variables'
+221:22: INFO: Renamed 'tf.initializers.variables' to 'tf.compat.v1.initializers.variables'
+227:26: INFO: tf.initializers.variance_scaling requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+227:26: INFO: Renamed 'tf.initializers.variance_scaling' to 'tf.compat.v1.initializers.variance_scaling'
+251:30: INFO: Renamed 'tf.trainable_variables' to 'tf.compat.v1.trainable_variables'
+255:24: INFO: Renamed 'tf.train.GradientDescentOptimizer' to 'tf.compat.v1.train.GradientDescentOptimizer'
+257:24: INFO: Renamed 'tf.train.MomentumOptimizer' to 'tf.compat.v1.train.MomentumOptimizer'
+259:24: INFO: Renamed 'tf.train.AdamOptimizer' to 'tf.compat.v1.train.AdamOptimizer'
+263:57: INFO: Renamed 'tf.get_collection' to 'tf.compat.v1.get_collection'
+263:75: INFO: Renamed 'tf.GraphKeys' to 'tf.compat.v1.GraphKeys'
+293:26: INFO: tf.initializers.variance_scaling requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+293:26: INFO: Renamed 'tf.initializers.variance_scaling' to 'tf.compat.v1.initializers.variance_scaling'
+295:67: INFO: tf.constant_initializer requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+295:67: INFO: Renamed 'tf.constant_initializer' to 'tf.compat.v1.constant_initializer'
+296:12: INFO: Changing keep_prob arg of tf.nn.dropout to rate, and recomputing value.
+
+299:15: INFO: Renamed 'tf.nn.xw_plus_b' to 'tf.compat.v1.nn.xw_plus_b'
+303:19: INFO: Renamed 'tf.trainable_variables' to 'tf.compat.v1.trainable_variables'
+362:36: INFO: tf.random_normal_initializer requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+362:36: INFO: Renamed 'tf.random_normal_initializer' to 'tf.compat.v1.random_normal_initializer'
+365:12: INFO: Added keywords to args of function 'tf.nn.conv2d'
+365:12: INFO: Renamed keyword argument for tf.nn.conv2d from filter to filters
+384:26: INFO: tf.initializers.variance_scaling requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+384:26: INFO: Renamed 'tf.initializers.variance_scaling' to 'tf.compat.v1.initializers.variance_scaling'
+--------------------------------------------------------------------------------
+

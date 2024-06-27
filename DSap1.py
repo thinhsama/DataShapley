@@ -8,7 +8,7 @@ import os
 import tensorflow as tf
 import sys
 from shap_utils import *
-from Shapley import ShapNN
+from Shapley2 import ShapNN
 from scipy.stats import spearmanr
 import shutil
 from sklearn.base import clone
@@ -61,7 +61,7 @@ class DShap(object):
             self.hidden_units = []
         if self.directory is not None:
             if overwrite and os.path.exists(directory):
-                tf.gfile.DeleteRecursively(directory)
+                tf.io.gfile.rmtree(directory)
             if not os.path.exists(directory):
                 os.makedirs(directory)  
                 os.makedirs(os.path.join(directory, 'weights'))
@@ -227,12 +227,14 @@ class DShap(object):
             loo_run: If True, computes and saves leave-one-out scores.
         """
         if loo_run:
+            print(1)
             try:
                 len(self.vals_loo)
             except:
+                print(2)
                 self.vals_loo = self._calculate_loo_vals(sources=self.sources)
                 self.save_results(overwrite=True)
-        print('LOO values calculated!')
+        print('LOO values calculated!', loo_run)
         tmc_run = True 
         g_run = g_run and self.model_family in ['logistic', 'NN']
         while tmc_run or g_run:
@@ -393,6 +395,7 @@ class DShap(object):
         
     def _one_step_lr(self):
         """Computes the best learning rate for G-Shapley algorithm."""
+        print(self.X.shape, self.y.shape)
         if self.directory is None:
             address = None
         else:
@@ -434,6 +437,7 @@ class DShap(object):
         address = None
         if self.directory is not None:
             address = os.path.join(self.directory, 'weights')
+        print("learning rate la:", learning_rate)
         if learning_rate is None:
             try:
                 learning_rate = self.g_shap_lr
