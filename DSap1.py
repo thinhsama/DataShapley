@@ -90,10 +90,13 @@ class DShap(object):
         if os.path.exists(data_dir):
             self._load_dataset(data_dir)
         else:
-            self.X_heldout = X_test[:-num_test]
-            self.y_heldout = y_test[:-num_test]
-            self.X_test = X_test[-num_test:]
-            self.y_test = y_test[-num_test:]
+            all_test_idx = np.random.permutation(len(X_test))
+            test_sample_idx = all_test_idx[:num_test]
+            heldout_sample_idx = all_test_idx[num_test:]
+            self.X_heldout = X_test[heldout_sample_idx]
+            self.y_heldout = y_test[heldout_sample_idx]
+            self.X_test = X_test[test_sample_idx]
+            self.y_test = y_test[test_sample_idx]
             self.X, self.y, self.sources = X, y, sources
             self.sample_weight = sample_weight
             data_dic = {'X': self.X, 'y': self.y, 'X_test': self.X_test,
@@ -235,6 +238,8 @@ class DShap(object):
                 self.vals_loo = self._calculate_loo_vals(sources=self.sources)
                 self.save_results(overwrite=True)
         print('LOO values calculated!', loo_run)
+        self.vals_loo = self._calculate_loo_vals(sources=self.sources)
+        print(1)
         tmc_run = True 
         g_run = g_run and self.model_family in ['logistic', 'NN']
         while tmc_run or g_run:
@@ -295,7 +300,9 @@ class DShap(object):
         try:
             self.mean_score
         except:
+            print('tinh tol mean score')
             self._tol_mean_score()
+        print('mean score:', self.mean_score)
         if tolerance is None:
             tolerance = self.tolerance         
         marginals, idxs = [], []
@@ -344,9 +351,11 @@ class DShap(object):
         elif not isinstance(sources, dict):
             sources = {i: np.where(sources == i)[0] for i in set(sources)}
         idxs = np.random.permutation(len(sources))
+        print('idxs', len(idxs))
         marginal_contribs = np.zeros(len(self.X))
         X_batch = np.zeros((0,) + tuple(self.X.shape[1:]))
         y_batch = np.zeros(0, int)
+        print('kich thuoc x y batch:', X_batch.shape, y_batch.shape)
         sample_weight_batch = np.zeros(0)
         truncation_counter = 0
         new_score = self.random_score
@@ -395,7 +404,7 @@ class DShap(object):
         
     def _one_step_lr(self):
         """Computes the best learning rate for G-Shapley algorithm."""
-        print(self.X.shape, self.y.shape)
+        print('G shapley:', self.X.shape, self.y.shape)
         if self.directory is None:
             address = None
         else:
@@ -485,7 +494,9 @@ class DShap(object):
             sources = {i:np.array([i]) for i in range(len(self.X))}
         elif not isinstance(sources, dict):
             sources = {i:np.where(sources==i)[0] for i in set(sources)}
+        print('sources LOO:', sources)
         print('Starting LOO score calculations!')
+        print('LOO X,y:', self.X.shape, self.y.shape)
         if metric is None:
             metric = self.metric 
         self.restart_model()
@@ -496,6 +507,7 @@ class DShap(object):
                           sample_weight=self.sample_weight)
         baseline_value = self.value(self.model, metric=metric)
         vals_loo = np.zeros(len(self.X))
+        print('vals_loo:', vals_loo.shape)
         for i in sources.keys():
             X_batch = np.delete(self.X, sources[i], axis=0)
             y_batch = np.delete(self.y, sources[i], axis=0)
@@ -601,6 +613,7 @@ class DShap(object):
         perfs = [self._portion_performance(
             np.argsort(vals_source)[::-1], plot_points, sources=sources)
                  for vals_source in vals_sources]
+        print(len(perfs))
         rnd = np.mean([self._portion_performance(
             np.random.permutation(np.argsort(vals_sources[0])[::-1]),
             plot_points, sources=sources) for _ in range(10)], 0)
