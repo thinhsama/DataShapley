@@ -243,6 +243,7 @@ class DShap(object):
         print(1)
         tmc_run = True 
         g_run = g_run and self.model_family in ['logistic', 'NN']
+        g_run = False
         while tmc_run or g_run:
             if g_run:
                 if error(self.mem_g) < err:
@@ -307,6 +308,7 @@ class DShap(object):
         if tolerance is None:
             tolerance = self.tolerance         
         marginals, idxs = [], []
+        #print(sources)
         for iteration in range(iterations):
             if 10*(iteration+1)/iterations % 1 == 0:
                 print('{} out of {} TMC_Shapley iterations.'.format(
@@ -315,6 +317,7 @@ class DShap(object):
                 tolerance=tolerance, 
                 sources=sources
             )
+            #print(iteration)
             self.mem_tmc = np.concatenate([
                 self.mem_tmc, 
                 np.reshape(marginals, (1,-1))
@@ -356,21 +359,29 @@ class DShap(object):
         marginal_contribs = np.zeros(len(self.X))
         X_batch = np.zeros((0,) + tuple(self.X.shape[1:]))
         y_batch = np.zeros(0, int)
-        print('kich thuoc x y batch:', X_batch.shape, y_batch.shape)
+        #print('kich thuoc x y batch:', X_batch.shape, y_batch.shape)
         sample_weight_batch = np.zeros(0)
+        #print(sample_weight_batch.shape)
         truncation_counter = 0
         new_score = self.random_score
         for n, idx in enumerate(idxs):
             old_score = new_score
             X_batch = np.concatenate([X_batch, self.X[sources[idx]]])
-            y_batch = np.concatenate([y_batch, self.y[sources[idx]]])
+            y_batch = np.concatenate([y_batch, self.y[sources[idx]] ])
             if self.sample_weight is None:
                 sample_weight_batch = None
             else:
+                #print('sr:', sources[idx].shape)
+                soap = sources[idx][0]
+                #print('SO:', soap)
+                #print('HK', sources[idx][1].shape)
+                #print(self.sample_weight[soap])
                 sample_weight_batch = np.concatenate([
                     sample_weight_batch, 
-                    self.sample_weight[sources[idx]]
+                    np.array([self.sample_weight[soap]])
                 ])
+                #print(sample_weight_batch)
+                #print(sample_weight_batch.shape)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 if (self.is_regression 
@@ -463,6 +474,7 @@ class DShap(object):
             if 10 * (iteration+1) / iterations % 1 == 0:
                 print('{} out of {} G-Shapley iterations'.format(
                     iteration + 1, iterations))
+            #print(iteration)
             marginal_contribs = np.zeros(len(sources.keys()))
             model.fit(self.X, self.y, self.X_test, self.y_test, 
                       sources=sources, metric=self.metric, 
@@ -476,9 +488,10 @@ class DShap(object):
                 individual_contribs[sources[index]] /= len(sources[index])
             self.mem_g = np.concatenate(
                 [self.mem_g, np.reshape(individual_contribs, (1,-1))])
+            #print(self.mem_g.shape)
             self.idxs_g = np.concatenate(
                 [self.idxs_g, np.reshape(model.history['idxs'][0], (1,-1))])
-    
+            #print(self.idxs_g.shape)
     def _calculate_loo_vals(self, sources=None, metric=None):
         """Calculated leave-one-out values for the given metric.
         
@@ -638,7 +651,70 @@ class DShap(object):
                 self.directory, 'plots', '{}.png'.format(name)),
                         bbox_inches = 'tight')
             plt.close()
-    
+    def performance_plots_inc(self, vals, name=None, 
+                          num_plot_markers=20, sources=None):
+        """Plots the effect of removing valuable points.
+        
+        Args:
+            vals: A list of different valuations of data points each
+                 in the format of an array in the same length of the data.
+            name: Name of the saved plot if not None.
+            num_plot_markers: number of points in each plot.
+            sources: If values are for sources of data points rather than
+                   individual points. In the format of an assignment array
+                   or dict.
+                   
+        Returns:
+            Plots showing the change in performance as points are removed
+            from most valuable to least.
+        """
+        plt.rcParams['figure.figsize'] = 8,8
+        plt.rcParams['font.size'] = 25
+        plt.xlabel('Fraction of train data removed (%)')
+        plt.ylabel('Prediction accuracy (%)', fontsize=20)
+        if not isinstance(vals, list) and not isinstance(vals, tuple):
+            vals = [vals]
+        if sources is None:
+            sources = {i:np.array([i]) for i in range(len(self.X))}
+        elif not isinstance(sources, dict):
+            sources = {i:np.where(sources==i)[0] for i in set(sources)}
+        vals_sources = [np.array([np.sum(val[sources[i]]) 
+                                  for i in range(len(sources.keys()))])
+                  for val in vals]
+        if len(sources.keys()) < num_plot_markers:
+            num_plot_markers = len(sources.keys()) - 1
+        plot_points = np.arange(
+            0, 
+            max(len(sources.keys()) - 10, num_plot_markers),
+            max(len(sources.keys())//num_plot_markers, 1)
+        )
+        perfs = [self._portion_performance(
+            np.argsort(vals_source), plot_points, sources=sources)
+                 for vals_source in vals_sources]
+        print(len(perfs))
+        rnd = np.mean([self._portion_performance(
+            np.random.permutation(np.argsort(vals_sources[0])),
+            plot_points, sources=sources) for _ in range(10)], 0)
+        plt.plot(plot_points/len(self.X) * 100, perfs[0] * 100, 
+                 '-', lw=5, ms=10, color='b')
+        if len(vals)==3:
+            plt.plot(plot_points/len(self.X) * 100, perfs[1] * 100, 
+                     '--', lw=5, ms=10, color='orange')
+            legends = ['TMC-Shapley ', 'G-Shapley ', 'LOO', 'Random']
+        elif len(vals)==2:
+            legends = ['TMC-Shapley ', 'LOO', 'Random']
+        else:
+            legends = ['TMC-Shapley ', 'Random']
+        plt.plot(plot_points/len(self.X) * 100, perfs[-1] * 100, 
+                 '-.', lw=5, ms=10, color='g')
+        plt.plot(plot_points/len(self.X) * 100, rnd * 100, 
+                 ':', lw=5, ms=10, color='r')    
+        plt.legend(legends)
+        if self.directory is not None and name is not None:
+            plt.savefig(os.path.join(
+                self.directory, 'plots', '{}.png'.format(name)),
+                        bbox_inches = 'tight')
+            plt.close()
     def performance_plots_poison(self, vals, name=None, 
                           num_plot_markers=20, sources=None, noise_mask=None):
         """Plots the effect of removing valuable points.
@@ -669,49 +745,35 @@ class DShap(object):
         vals_sources = [np.array([np.sum(val[sources[i]]) 
                                   for i in range(len(sources.keys()))])
                   for val in vals]
-        #noise_sorted_indices = np.argsort(vals_sources[0])[::-1]
+        x_all, y1, y2, y3, base_all = [], [], [], [], []
+        
         noise_sorted_indices = np.argsort(vals_sources[0])
         print(noise_sorted_indices.shape)
         print(noise_sorted_indices)
-        #sorted_noise_indices = np.where(noise_mask[noise_sorted_indices] == 1)[0]
-        #print(sorted_noise_indices.shape)
-        #print(sorted_noise_indices)
-        self.visualize_values_distr_sorted(noise_sorted_indices, trsize = len(self.X), portion=0.3, noise_mask = noise_mask, name = name)
-        # if len(sources.keys()) < num_plot_markers:
-        #     num_plot_markers = len(sources.keys()) - 1
-        # plot_points = np.arange(
-        #     0, 
-        #     max(len(sources.keys()) - 10, num_plot_markers),
-        #     max(len(sources.keys())//num_plot_markers, 1)
-        # )
-        # perfs = [self._portion_performance(
-        #     np.argsort(vals_source)[::-1], plot_points, sources=sources)
-        #          for vals_source in vals_sources]
-        # print(len(perfs))
-        # rnd = np.mean([self._portion_performance(
-        #     np.random.permutation(np.argsort(vals_sources[0])[::-1]),
-        #     plot_points, sources=sources) for _ in range(10)], 0)
-        # plt.plot(plot_points/len(self.X) * 100, perfs[0] * 100, 
-        #          '-', lw=5, ms=10, color='b')
-        # if len(vals)==3:
-        #     plt.plot(plot_points/len(self.X) * 100, perfs[1] * 100, 
-        #              '--', lw=5, ms=10, color='orange')
-        #     legends = ['TMC-Shapley ', 'G-Shapley ', 'LOO', 'Random']
-        # elif len(vals)==2:
-        #     legends = ['TMC-Shapley ', 'LOO', 'Random']
-        # else:
-        #     legends = ['TMC-Shapley ', 'Random']
-        # plt.plot(plot_points/len(self.X) * 100, perfs[-1] * 100, 
-        #          '-.', lw=5, ms=10, color='g')
-        # plt.plot(plot_points/len(self.X) * 100, rnd * 100, 
-        #          ':', lw=5, ms=10, color='r')    
-        # plt.legend(legends)
-        # if self.directory is not None and name is not None:
-        #     plt.savefig(os.path.join(
-        #         self.directory, 'plots', '{}.png'.format(name)),
-        #                 bbox_inches = 'tight')
-        #     plt.close()
-
+        x_all, y1, base_all = self.visualize_values_distr_sorted(noise_sorted_indices, trsize = len(self.X), portion=0.1, noise_mask = noise_mask, name = name)
+        noise_sorted_indices = np.argsort(vals_sources[1])
+        print(noise_sorted_indices.shape)
+        print(noise_sorted_indices)
+        _, y2, _ = self.visualize_values_distr_sorted(noise_sorted_indices, trsize = len(self.X), portion=0.1, noise_mask = noise_mask, name = name)
+        noise_sorted_indices = np.argsort(vals_sources[2])
+        print(noise_sorted_indices.shape)
+        print(noise_sorted_indices)
+        _, y3, _ = self.visualize_values_distr_sorted(noise_sorted_indices, trsize = len(self.X), portion=0.1, noise_mask = noise_mask, name = name)
+        plt.clf()
+        plt.scatter(x_all, y1, s=10, color='blue')
+        plt.scatter(x_all, y2, s=10, color='orange')
+        plt.scatter(x_all, y3, s=10, color='green')
+        plt.scatter(x_all, base_all, s=10, color='red')
+        plt.xlabel('Inspected Images')
+        plt.ylabel('Detected Images')
+        yticks_values = np.arange(0, 1, 0.1)
+        plt.yticks(yticks_values)
+        plt.title('Detection vs Gradient Inspection')
+        #plt.show()
+        plt.savefig(os.path.join(
+            self.directory, 'plots', '{}.png'.format(name)),
+            bbox_inches = 'tight')
+        plt.close()
     def visualize_values_distr_sorted(self, noise_sorted_indices, trsize, portion, noise_mask =None, name=None, poisoned=None):
         x1, y1, base = [], [], []
         if poisoned is None:
@@ -727,24 +789,14 @@ class DShap(object):
                     if noise_mask[index]:
                         found += noise_mask[index]
                 #synthetic_found = found - actual_found
+                inspected_rate = found / vari
                 detection_rate = found / poisoned
-                baseline = vari * 0.3 * 0.8
-                print(f'inspected: {vari}, found: {found}, detection rate: {detection_rate:.2f} baseline ti le tim ra loi co lon hon 0.8 khong: {baseline:.2f}')
+                baseline = vari * 0.1 * 0.9
+                print(f'inspected: {vari}, found: {found}, inspected rate: {inspected_rate:.2f}, detection rate: {detection_rate:.2f}, baseline ti le tim ra loi co lon hon 0.8 khong: {baseline:.2f}')
                 x1.append(vari)
-                y1.append(found)
-                base.append(vari * poisoned / trsize * 1.0)
-                
-        plt.scatter(x1, y1, s=10, color='red')
-        plt.scatter(x1, base, s=10, color='orange')
-        plt.xlabel('Inspected Images')
-        plt.ylabel('Detected Images')
-        #yticks_values = np.arange(0, 1, 0.1)
-        #plt.yticks(yticks_values)
-        plt.title('Detection vs Gradient Inspection')
-        #plt.show()
-        plt.savefig(os.path.join(
-            self.directory, 'plots', '{}.png'.format(name)),
-            bbox_inches = 'tight')
+                y1.append(found/poisoned)
+                base.append(baseline / poisoned)
+        return x1, y1, base
         
     def _portion_performance(self, idxs, plot_points, sources=None):
         """Given a set of indexes, starts removing points from 
@@ -754,14 +806,18 @@ class DShap(object):
             sources = {i:np.array([i]) for i in range(len(self.X))}
         elif not isinstance(sources, dict):
             sources = {i:np.where(sources==i)[0] for i in set(sources)}
+        print(sources)
         scores = []
         init_score = self.random_score
         for i in range(len(plot_points), 0, -1):
             keep_idxs = np.concatenate([sources[idx] for idx 
                                         in idxs[plot_points[i-1]:]], -1)
+            print('kidx:', keep_idxs, type(keep_idxs))
             X_batch, y_batch = self.X[keep_idxs], self.y[keep_idxs]
+            print(y_batch)
             if self.sample_weight is not None:
-                sample_weight_batch = self.sample_weight[keep_idxs]
+                self.sample_weight = np.array(self.sample_weight)
+                sample_weight_batch = np.array(self.sample_weight[keep_idxs])
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 if (self.is_regression 
